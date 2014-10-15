@@ -1,0 +1,93 @@
+<pre>
+#!/usr/bin/env php
+<?php
+</pre>
+注意第1行，在指令列的某些情況下才需要。
+參見：<a href="http://stackoverflow.com/questions/8737898/is-usr-bin-env-required-to-run-php-from-command-line">Is #!/usr/bin/env required to run PHP from command line?</a>
+<pre>
+/*
+|--------------------------------------------------------------------------
+| Register The Auto Loader
+|--------------------------------------------------------------------------
+|
+| Composer provides a convenient, automatically generated class loader
+| for our application. We just need to utilize it! We'll require it
+| into the script here so that we do not have to worry about the
+| loading of any our classes "manually". Feels great to relax.
+|
+*/
+
+require __DIR__.'/bootstrap/autoload.php';
+
+/*
+|--------------------------------------------------------------------------
+| Turn On The Lights
+|--------------------------------------------------------------------------
+|
+| We need to illuminate PHP development, so let's turn on the lights.
+| This bootstraps the framework and gets it ready for and then it
+| will load up this application so that we can run it and send
+| the responses back to the browser and delight these users.
+|
+*/
+
+$app = require_once __DIR__.'/bootstrap/start.php';
+
+</pre>
+上面這段讀取自動載入檔案、啟動Laravel框架的檔案，跟入口檔案是一樣的。
+參見：<a href="http://blog.turn.tw/?page_id=764" title="起點：public/index.php">起點：public/index.php</a>
+<pre>
+
+/*
+|--------------------------------------------------------------------------
+| Load The Artisan Console Application
+|--------------------------------------------------------------------------
+|
+| We'll need to run the script to load and return the Artisan console
+| application. We keep this in its own script so that we will load
+| the console application independent of running commands which
+| will allow us to fire commands from Routes when we want to.
+|
+*/
+
+$app->setRequestForConsoleEnvironment();
+
+$artisan = Illuminate\Console\Application::start($app);
+
+/*
+|--------------------------------------------------------------------------
+| Run The Artisan Application
+|--------------------------------------------------------------------------
+|
+| When we run the console application, the current CLI command will be
+| executed in this console and the response sent back to a terminal
+| or another output device for the developers. Here goes nothing!
+|
+*/
+
+$status = $artisan->run();
+
+/*
+|--------------------------------------------------------------------------
+| Shutdown The Application
+|--------------------------------------------------------------------------
+|
+| Once Artisan has finished running. We will fire off the shutdown events
+| so that any final work may be done by the application before we shut
+| down the process. This is the last thing to happen to the request.
+|
+*/
+
+$app->shutdown();
+
+exit($status);
+</pre>
+後面這段code非常巧妙。在public/index.php裏面，$app是框架類別初始化出來的物件，接著$app->run來讓整個程序動起來。
+但在這裡卻是先將$app設定request來源為console，接著把整個物件當作參數丟給Illuminate\Console\Application類別，最後執行$artisan->run並且將$app->shutdown關機。
+為什麼在命令列執行本身不算是$app的任務，而是由額外類別的實體$artisan來負責？
+為什麼實體$artisan需要$app當作參數，而不是自己在內部執行一次初始化程序？
+原作者抽象化思考的方式非常值得深入揣測。
+<red>
+我不喜歡Application::start這個靜態函式的命名。
+既然回傳了實體，應該叫create或是make之類的。
+</red>

@@ -1,0 +1,78 @@
+Laravel框架的入口檔案，所有PHP框架都有這樣一支檔案。
+注意index.php檔不在根目錄，而是在public資料夾裏面。Apache調整路徑的.htaccess也在那兒。
+因此，web server的根目錄不會設成Laravel的根目錄，而是public資料夾。
+這麼做是因為資安考量：public內通常還會放個assets資料夾(擺放css/js/img等檔案)之類的、只允許public資料夾被使用者接觸到、讓其他地方的檔案不會被惡意使用者碰到。
+舉CodeIgniter2.1.4版本為反例：index.php放在根目錄，導致所有資料夾都有可能被使用者接觸到。結果只好在所有檔案前面加上：
+<pre><?php  if ( ! defined('BASEPATH')) exit('No direct script access allowed');
+</pre> 
+然後在每個資料夾建立index.html檔：
+<pre>
+<html>
+<head>
+	<title>403 Forbidden</title>
+</head>
+<body>
+
+<p>Directory access is forbidden.</p>
+
+</body>
+</html>
+</pre>
+作為防禦了，挺煩的。
+<pre>
+<?php
+/**
+ * Laravel - A PHP Framework For Web Artisans
+ *
+ * @package  Laravel
+ * @author   Taylor Otwell <taylorotwell@gmail.com>
+ */
+
+/*
+|--------------------------------------------------------------------------
+| Register The Auto Loader
+|--------------------------------------------------------------------------
+|
+| Composer provides a convenient, automatically generated class loader
+| for our application. We just need to utilize it! We'll require it
+| into the script here so that we do not have to worry about the
+| loading of any our classes "manually". Feels great to relax.
+|
+*/
+
+require __DIR__.'/../bootstrap/autoload.php';
+</pre>
+載入一個會自動載入所需類別的php檔，讓開發人員不需要手動載入他們。
+參見：<a href="http://blog.turn.tw/?page_id=768">自動載入類別：bootstrap/autoload.php</a>
+<pre>
+/*
+|--------------------------------------------------------------------------
+| Turn On The Lights
+|--------------------------------------------------------------------------
+|
+| We need to illuminate PHP development, so let's turn on the lights.
+| This bootstraps the framework and gets it ready for use, then it
+| will load up this application so that we can run it and send
+| the responses back to the browser and delight these users.
+|
+*/
+
+$app = require_once __DIR__.'/../bootstrap/start.php';
+</pre>
+載入框架本身。
+<pre>
+/*
+|--------------------------------------------------------------------------
+| Run The Application
+|--------------------------------------------------------------------------
+|
+| Once we have the application, we can simply call the run method,
+| which will execute the request and send the response back to
+| the client's browser allowing them to enjoy the creative
+| and wonderful application we have whipped up for them.
+|
+*/
+
+$app->run();
+</pre>
+呼叫run函式，接收request、處理，最後送出相應的response回去。

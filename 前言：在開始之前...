@@ -1,0 +1,6 @@
+Laravel原作者撰寫了一系列的函式庫，統一放在vendor/laravel/framework/src/的Illuminate資料夾內。
+Laravel框架可以視為作者巧妙利用PHP社群現有的工具(譬如套件管理Composer、Symfony Component)、將這些工具與Illuminate組裝在一起的方法。
+其中HTTP Request與Reponse的類別、routing的類別是應用了Symfony的函式庫。Symfony Component可以說是Laravel的骨幹。
+因此，在研讀Laravel原始碼之前，若能先熟悉這些元件，將會有莫大的幫助。
+請參見Symfony作者撰寫的教程：
+<a href="http://fabien.potencier.org/article/50/create-your-own-framework-on-top-of-the-symfony2-components-part-1" title="Create your own framework... on top of the Symfony2 Components">Create your own framework... on top of the Symfony2 Components</a>
