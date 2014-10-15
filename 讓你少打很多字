@@ -1,0 +1,43 @@
+在<a href="http://blog.turn.tw/?page_id=866" title="執行工作：Routing/Route.php">執行工作：Routing/Route.php</a>中，你看到了Route類別的實作內容。
+
+實際用Laravel製作網站，你會在app資料夾的routes.php內寫好routing規則：<a href="http://laravel.com/docs/4.2/routing" title="Routing">Routing</a>
+
+奇怪之處在於：你會撰寫這樣的東西：
+<pre>
+Route::get(/* ... */); 
+Route::post(/* ... */);
+</pre>
+這樣寫確實很舒服，直接用類別的靜態函式寫內容，而不用先初始化物件然後再拿這物件執行什麼任務。少打很多字。
+
+問題是翻遍Routing/Route.php的內容，會發現Route根本沒有靜態函式get或是靜態函式post。這是怎麼一回事？
+有兩個問題浮現：
+
+一、難道其他地方也定義了Route類別？重複宣告類別不是會fatal error嗎？
+二、那幾個靜態函式到底是什麼巫術？
+
+其實這是Laravel應用Facade Pattern的一個例子。
+此處撰寫的Route定義在：
+vendor/laravel/framework/src/Illuminate/Support/Facades/Route.php
+問題一的答案是因為命名空間(namespace)的應用，所以不會出問題。
+問題二則是因為這Route繼承了Facade類別，會將靜態函式對應到Laravel框架執行時初始化出來的一個router物件上。
+那個router物件就是<a href="http://blog.turn.tw/?page_id=838" title="分配工作：Routing/Router.php">分配工作：Routing/Router.php</a>的那個router啦。
+
+Laravel用到了許多的Facade Pattern來讓開發時可以多用這種寫靜態函式的方法寫code。
+官網對此的說明與用到的facade一覽在這兒：
+<a href="http://laravel.com/docs/4.2/facades" title="Facades">Facades</a>
+
+<red>
+「
+等等！靜態函式背後去對應到一個物件？所以我其實在呼叫某個物件的方法？
+這不對啊！靜態函式的意義就是跟物件無關、只跟類別相關，才寫成靜態函式吧？
+結果明明是在呼叫物件的函式，卻用一個類別的靜態函式去包裝它？
+這麼汙染OOP思考的作法，只為了讓Laravel使用者寫code時少打一些字？
+還是我的OOP思想有本質上的錯誤？
+」
+如果腦中沒浮現以上的問題，請忽略上面這段，繼續享受Laravel帶給你的簡潔寫法。
+如果腦中禁不住要思考以上的批判...，不要緊張，你並沒有錯。
+Laravel的Facade應用確實遭到許多開發人員的批評。詳細的批評與討論，請參見：
+<a href="http://programmingarehard.com/2014/01/11/stop-using-facades.html" title="Stop Using Facades">Stop Using Facades</a>
+許多PHP知名工程師參與了辯論、Laravel原作者也撰文親自回應了這樣的批評：
+<a href="http://taylorotwell.com/response-dont-use-facades/" title="RESPONSE: DON’T USE FACADES">RESPONSE: DONT USE FACADES</a>
+</red>

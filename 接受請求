@@ -1,0 +1,662 @@
+傳送HTTP REQEUST給伺服器時，通常會帶有參數，此份檔案便是處理這些參數的類別。
+在官方文件：<a href="http://laravel.com/docs/4.2/requests" title="Requests & Input">Requests & Input</a>裡常出現的呼叫Input類別靜態函式、還有Request靜態函式，背後都是在呼叫這支Request.php類別的實體。
+這種呼叫靜態函式去對應實體的pattern是Facade Pattern的一種應用，請參見：<a href="http://blog.turn.tw/?page_id=875" title="讓你少打很多字：Facades。">讓你少打很多字：Facades。</a>
+Laravel中，這個request實體是在Foundation/Application.php中的建構式中產生。
+<red>
+Input、Request兩個Facades，背後是呼叫同一個實體？
+這樣設計的原因何在...需要研究一下？？？
+</red>
+有非常多的函式在呼叫母類別的函式，可以搭配Symfony API文件閱讀：
+<a href="http://api.symfony.com/2.0/Symfony/Component/HttpFoundation/Request.html" title="Symfony\Component\HttpFoundation\Request">Symfony\Component\HttpFoundation\Request</a>
+<pre>
+<?php namespace Illuminate\Http;
+
+use SplFileInfo;
+use Symfony\Component\HttpFoundation\ParameterBag;
+use Symfony\Component\HttpFoundation\Request as SymfonyRequest;
+
+class Request extends SymfonyRequest {
+
+	/**
+	 * The decoded JSON content for the request.
+	 *
+	 * @var string
+	 */
+	protected $json;
+
+	/**
+	 * The Illuminate session store implementation.
+	 *
+	 * @var \Illuminate\Session\Store
+	 */
+	protected $sessionStore;
+
+	/**
+	 * Return the Request instance.
+	 *
+	 * @return $this
+	 */
+	public function instance()
+	{
+		return $this;
+	}
+</pre>
+回傳實體本身。
+一般OOP開發不會出現這種函式。它是為了Laravel的Facades實作而存在。
+<pre>
+	/**
+	 * Get the request method.
+	 *
+	 * @return string
+	 */
+	public function method()
+	{
+		return $this->getMethod();
+	}
+</pre>
+取得HTTP Request Verb。
+getMethod是繼承自Symfony的Request類別。
+<red>
+這是原作者嫌棄Symfony的getMethod要多打3個字母而多寫的函式吧。
+我覺得這個函式不好、不應該存在。
+想想日後別人擴充Laravel元件時，method跟getMethod到處散落的情景。
+</red>
+<pre>
+	/**
+	 * Get the root URL for the application.
+	 *
+	 * @return string
+	 */
+	public function root()
+	{
+		return rtrim($this->getSchemeAndHttpHost().$this->getBaseUrl(), '/');
+	}
+</pre>
+取得根網址。
+官方文件跟社群會告訴你取得根網址要用
+<pre>
+URL::to('/')
+</pre>
+你現在知道以下這兩個也可以了。
+<pre>
+Input::root()
+Request::root()
+</pre>
+當然，不建議你這樣做，太hack了。
+<pre>
+
+	/**
+	 * Get the URL (no query string) for the request.
+	 *
+	 * @return string
+	 */
+	public function url()
+	{
+		return rtrim(preg_replace('/\?.*/', '', $this->getUri()), '/');
+	}
+</pre>
+取得沒有query string部份的網址。
+同上方root函式，讀這份原始碼...會發現很多取得網址的hack用法。
+不過沒有必要就是了。
+<pre>
+	/**
+	 * Get the full URL for the request.
+	 *
+	 * @return string
+	 */
+	public function fullUrl()
+	{
+		$query = $this->getQueryString();
+
+		return $query ? $this->url().'?'.$query : $this->url();
+	}
+</pre>
+取得完整url。
+那個問號跟冒號的用法是php的三元運算子，還沒學過的可以google一下。
+關鍵字「ternary operator」
+<pre>
+
+	/**
+	 * Get the current path info for the request.
+	 *
+	 * @return string
+	 */
+	public function path()
+	{
+		$pattern = trim($this->getPathInfo(), '/');
+
+		return $pattern == '' ? '/' : $pattern;
+	}
+</pre>
+看起來跟Symfony元件本來的getPathInfo函式差不多。
+差別在於，如果網址最後有「/」會被移除吧。
+<pre>
+
+	/**
+	 * Get the current encoded path info for the request.
+	 *
+	 * @return string
+	 */
+	public function decodedPath()
+	{
+		return rawurldecode($this->path());
+	}
+</pre>
+將網址套用rawurldecode。
+<red>
+實在沒有必要把PHP內建的函數再包起來一次。
+對Laravel使用者來說，學習Laravel的同時也應該學習PHP，他應該要知道PHP有rawurldecode這個函數。
+對Laravel的maintainer來說，decodedPath並不是被大量使用的函式(根本只被呼叫一次)，這樣包起來並沒有少打幾個字的效果。
+</red>
+<pre>
+
+	/**
+	 * Get a segment from the URI (1 based index).
+	 *
+	 * @param  string  $index
+	 * @param  mixed   $default
+	 * @return string
+	 */
+	public function segment($index, $default = null)
+	{
+		return array_get($this->segments(), $index - 1, $default);
+	}
+
+	/**
+	 * Get all of the segments for the request path.
+	 *
+	 * @return array
+	 */
+	public function segments()
+	{
+		$segments = explode('/', $this->path());
+
+		return array_values(array_filter($segments, function($v) { return $v != ''; }));
+	}
+
+	/**
+	 * Determine if the current request URI matches a pattern.
+	 *
+	 * @param  mixed  string
+	 * @return bool
+	 */
+	public function is()
+	{
+		foreach (func_get_args() as $pattern)
+		{
+			if (str_is($pattern, urldecode($this->path())))
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Determine if the request is the result of an AJAX call.
+	 *
+	 * @return bool
+	 */
+	public function ajax()
+	{
+		return $this->isXmlHttpRequest();
+	}
+
+	/**
+	 * Determine if the request is over HTTPS.
+	 *
+	 * @return bool
+	 */
+	public function secure()
+	{
+		return $this->isSecure();
+	}
+
+	/**
+	 * Returns the client IP address.
+	 *
+	 * @return string
+	 */
+	public function ip()
+	{
+		return $this->getClientIp();
+	}
+
+	/**
+	 * Returns the client IP addresses.
+	 *
+	 * @return array
+	 */
+	public function ips()
+	{
+		return $this->getClientIps();
+	}
+
+	/**
+	 * Determine if the request contains a given input item key.
+	 *
+	 * @param  string|array  $key
+	 * @return bool
+	 */
+	public function exists($key)
+	{
+		$keys = is_array($key) ? $key : func_get_args();
+
+		$input = $this->all();
+
+		foreach ($keys as $value)
+		{
+			if ( ! array_key_exists($value, $input)) return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Determine if the request contains a non-empty value for an input item.
+	 *
+	 * @param  string|array  $key
+	 * @return bool
+	 */
+	public function has($key)
+	{
+		$keys = is_array($key) ? $key : func_get_args();
+
+		foreach ($keys as $value)
+		{
+			if ($this->isEmptyString($value)) return false;
+		}
+
+		return true;
+	}
+</pre>
+判斷參數是否存在的函式。
+可以判斷單一參數或是陣列。
+(官方文件沒提到可以傳入陣列)
+<pre>
+	/**
+	 * Determine if the given input key is an empty string for "has".
+	 *
+	 * @param  string  $key
+	 * @return bool
+	 */
+	protected function isEmptyString($key)
+	{
+		$boolOrArray = is_bool($this->input($key)) || is_array($this->input($key));
+
+		return ! $boolOrArray && trim((string) $this->input($key)) === '';
+	}
+
+	/**
+	 * Get all of the input and files for the request.
+	 *
+	 * @return array
+	 */
+	public function all()
+	{
+		return array_replace_recursive($this->input(), $this->files->all());
+	}
+
+	/**
+	 * Retrieve an input item from the request.
+	 *
+	 * @param  string  $key
+	 * @param  mixed   $default
+	 * @return string
+	 */
+	public function input($key = null, $default = null)
+	{
+		$input = $this->getInputSource()->all() + $this->query->all();
+
+		return array_get($input, $key, $default);
+	}
+
+	/**
+	 * Get a subset of the items from the input data.
+	 *
+	 * @param  array  $keys
+	 * @return array
+	 */
+	public function only($keys)
+	{
+		$keys = is_array($keys) ? $keys : func_get_args();
+
+		$results = [];
+
+		$input = $this->all();
+
+		foreach ($keys as $key)
+		{
+			array_set($results, $key, array_get($input, $key));
+		}
+
+		return $results;
+	}
+
+	/**
+	 * Get all of the input except for a specified array of items.
+	 *
+	 * @param  array  $keys
+	 * @return array
+	 */
+	public function except($keys)
+	{
+		$keys = is_array($keys) ? $keys : func_get_args();
+
+		$results = $this->all();
+
+		array_forget($results, $keys);
+
+		return $results;
+	}
+
+	/**
+	 * Retrieve a query string item from the request.
+	 *
+	 * @param  string  $key
+	 * @param  mixed   $default
+	 * @return string
+	 */
+	public function query($key = null, $default = null)
+	{
+		return $this->retrieveItem('query', $key, $default);
+	}
+
+	/**
+	 * Determine if a cookie is set on the request.
+	 *
+	 * @param  string  $key
+	 * @return bool
+	 */
+	public function hasCookie($key)
+	{
+		return ! is_null($this->cookie($key));
+	}
+
+	/**
+	 * Retrieve a cookie from the request.
+	 *
+	 * @param  string  $key
+	 * @param  mixed   $default
+	 * @return string
+	 */
+	public function cookie($key = null, $default = null)
+	{
+		return $this->retrieveItem('cookies', $key, $default);
+	}
+
+	/**
+	 * Retrieve a file from the request.
+	 *
+	 * @param  string  $key
+	 * @param  mixed   $default
+	 * @return \Symfony\Component\HttpFoundation\File\UploadedFile|array
+	 */
+	public function file($key = null, $default = null)
+	{
+		return array_get($this->files->all(), $key, $default);
+	}
+
+	/**
+	 * Determine if the uploaded data contains a file.
+	 *
+	 * @param  string  $key
+	 * @return bool
+	 */
+	public function hasFile($key)
+	{
+		if ( ! is_array($files = $this->file($key))) $files = array($files);
+
+		foreach ($files as $file)
+		{
+			if ($this->isValidFile($file)) return true;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Check that the given file is a valid file instance.
+	 *
+	 * @param  mixed  $file
+	 * @return bool
+	 */
+	protected function isValidFile($file)
+	{
+		return $file instanceof SplFileInfo && $file->getPath() != '';
+	}
+
+	/**
+	 * Retrieve a header from the request.
+	 *
+	 * @param  string  $key
+	 * @param  mixed   $default
+	 * @return string
+	 */
+	public function header($key = null, $default = null)
+	{
+		return $this->retrieveItem('headers', $key, $default);
+	}
+
+	/**
+	 * Retrieve a server variable from the request.
+	 *
+	 * @param  string  $key
+	 * @param  mixed   $default
+	 * @return string
+	 */
+	public function server($key = null, $default = null)
+	{
+		return $this->retrieveItem('server', $key, $default);
+	}
+
+	/**
+	 * Retrieve an old input item.
+	 *
+	 * @param  string  $key
+	 * @param  mixed   $default
+	 * @return mixed
+	 */
+	public function old($key = null, $default = null)
+	{
+		return $this->session()->getOldInput($key, $default);
+	}
+
+	/**
+	 * Flash the input for the current request to the session.
+	 *
+	 * @param  string $filter
+	 * @param  array  $keys
+	 * @return void
+	 */
+	public function flash($filter = null, $keys = array())
+	{
+		$flash = ( ! is_null($filter)) ? $this->$filter($keys) : $this->input();
+
+		$this->session()->flashInput($flash);
+	}
+
+	/**
+	 * Flash only some of the input to the session.
+	 *
+	 * @param  mixed  string
+	 * @return void
+	 */
+	public function flashOnly($keys)
+	{
+		$keys = is_array($keys) ? $keys : func_get_args();
+
+		return $this->flash('only', $keys);
+	}
+
+	/**
+	 * Flash only some of the input to the session.
+	 *
+	 * @param  mixed  string
+	 * @return void
+	 */
+	public function flashExcept($keys)
+	{
+		$keys = is_array($keys) ? $keys : func_get_args();
+
+		return $this->flash('except', $keys);
+	}
+
+	/**
+	 * Flush all of the old input from the session.
+	 *
+	 * @return void
+	 */
+	public function flush()
+	{
+		$this->session()->flashInput(array());
+	}
+
+	/**
+	 * Retrieve a parameter item from a given source.
+	 *
+	 * @param  string  $source
+	 * @param  string  $key
+	 * @param  mixed   $default
+	 * @return string
+	 */
+	protected function retrieveItem($source, $key, $default)
+	{
+		if (is_null($key))
+		{
+			return $this->$source->all();
+		}
+
+		return $this->$source->get($key, $default, true);
+	}
+
+	/**
+	 * Merge new input into the current request's input array.
+	 *
+	 * @param  array  $input
+	 * @return void
+	 */
+	public function merge(array $input)
+	{
+		$this->getInputSource()->add($input);
+	}
+
+	/**
+	 * Replace the input for the current request.
+	 *
+	 * @param  array  $input
+	 * @return void
+	 */
+	public function replace(array $input)
+	{
+		$this->getInputSource()->replace($input);
+	}
+
+	/**
+	 * Get the JSON payload for the request.
+	 *
+	 * @param  string  $key
+	 * @param  mixed   $default
+	 * @return mixed
+	 */
+	public function json($key = null, $default = null)
+	{
+		if ( ! isset($this->json))
+		{
+			$this->json = new ParameterBag((array) json_decode($this->getContent(), true));
+		}
+
+		if (is_null($key)) return $this->json;
+
+		return array_get($this->json->all(), $key, $default);
+	}
+
+	/**
+	 * Get the input source for the request.
+	 *
+	 * @return \Symfony\Component\HttpFoundation\ParameterBag
+	 */
+	protected function getInputSource()
+	{
+		if ($this->isJson()) return $this->json();
+
+		return $this->getMethod() == 'GET' ? $this->query : $this->request;
+	}
+
+	/**
+	 * Determine if the request is sending JSON.
+	 *
+	 * @return bool
+	 */
+	public function isJson()
+	{
+		return str_contains($this->header('CONTENT_TYPE'), '/json');
+	}
+
+	/**
+	 * Determine if the current request is asking for JSON in return.
+	 *
+	 * @return bool
+	 */
+	public function wantsJson()
+	{
+		$acceptable = $this->getAcceptableContentTypes();
+
+		return isset($acceptable[0]) && $acceptable[0] == 'application/json';
+	}
+
+	/**
+	 * Get the data format expected in the response.
+	 *
+	 * @param  string  $default
+	 * @return string
+	 */
+	public function format($default = 'html')
+	{
+		foreach ($this->getAcceptableContentTypes() as $type)
+		{
+			if ($format = $this->getFormat($type)) return $format;
+		}
+
+		return $default;
+	}
+
+	/**
+	 * Create an Illuminate request from a Symfony instance.
+	 *
+	 * @param  \Symfony\Component\HttpFoundation\Request  $request
+	 * @return \Illuminate\Http\Request
+	 */
+	public static function createFromBase(SymfonyRequest $request)
+	{
+		if ($request instanceof static) return $request;
+
+		return (new static)->duplicate(
+
+			$request->query->all(), $request->request->all(), $request->attributes->all(),
+
+			$request->cookies->all(), $request->files->all(), $request->server->all()
+		);
+	}
+
+	/**
+	 * Get the session associated with the request.
+	 *
+	 * @return \Illuminate\Session\Store
+	 *
+	 * @throws \RuntimeException
+	 */
+	public function session()
+	{
+		if ( ! $this->hasSession())
+		{
+			throw new \RuntimeException("Session store not set on request.");
+		}
+
+		return $this->getSession();
+	}
+
+}
+
+</pre>

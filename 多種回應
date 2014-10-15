@@ -1,0 +1,140 @@
+在官方文件：<a href="http://laravel.com/docs/4.2/responses" title="Views & Responses">Views & Responses</a>裡呼叫Response類別靜態函式，背後是在呼叫這支Response.php類別的實體。
+
+這Response類別是Support/Facades資料夾中，唯一沒有繼承Facade類別的類別。
+Laravel對Facade Pattern的應用幾乎都是利用類別靜態函式去呼叫某實體的函式。
+此Response是唯一的例外。它的靜態函式分別對應到了幾個不同的實體。
+<pre>
+<?php namespace Illuminate\Support\Facades;
+
+use Illuminate\Support\Str;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Support\Traits\MacroableTrait;
+use Illuminate\Http\Response as IlluminateResponse;
+use Illuminate\Support\Contracts\ArrayableInterface;
+use Symfony\Component\HttpFoundation\StreamedResponse;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
+
+class Response {
+
+	use MacroableTrait;
+
+	/**
+	 * Return a new response from the application.
+	 *
+	 * @param  string  $content
+	 * @param  int     $status
+	 * @param  array   $headers
+	 * @return \Illuminate\Http\Response
+	 */
+	public static function make($content = '', $status = 200, array $headers = array())
+	{
+		return new IlluminateResponse($content, $status, $headers);
+	}
+</pre>
+參見官網「Creating Custom Responses」一節。直接用content、status、headers客製化一個實體回應。
+<pre>
+
+	/**
+	 * Return a new view response from the application.
+	 *
+	 * @param  string  $view
+	 * @param  array   $data
+	 * @param  int     $status
+	 * @param  array   $headers
+	 * @return \Illuminate\Http\Response
+	 */
+	public static function view($view, $data = array(), $status = 200, array $headers = array())
+	{
+		$app = Facade::getFacadeApplication();
+
+		return static::make($app['view']->make($view, $data), $status, $headers);
+	}
+</pre>
+將$view與$data丟給$app['view'](也就是View模組)去make出結果，再將結果與$status跟$headers丟給靜態函式make。
+當你想用make客製化response，但是又想使用Laravel的View模組時的可用函式。
+跟用View::make($view, $data)產生內容再丟給Response::make()其實同樣意思。
+<pre>
+	/**
+	 * Return a new JSON response from the application.
+	 *
+	 * @param  string|array  $data
+	 * @param  int    $status
+	 * @param  array  $headers
+	 * @param  int    $options
+	 * @return \Illuminate\Http\JsonResponse
+	 */
+	public static function json($data = array(), $status = 200, array $headers = array(), $options = 0)
+	{
+		if ($data instanceof ArrayableInterface)
+		{
+			$data = $data->toArray();
+		}
+
+		return new JsonResponse($data, $status, $headers, $options);
+	}
+</pre>
+產生json格式回應。參見官網「Special Responses」一節。
+<pre>
+	/**
+	 * Return a new JSONP response from the application.
+	 *
+	 * @param  string  $callback
+	 * @param  string|array  $data
+	 * @param  int    $status
+	 * @param  array  $headers
+	 * @param  int    $options
+	 * @return \Illuminate\Http\JsonResponse
+	 */
+	public static function jsonp($callback, $data = [], $status = 200, array $headers = [], $options = 0)
+	{
+		return static::json($data, $status, $headers, $options)->setCallback($callback);
+	}
+</pre>
+這邊則是JSONP的回應。
+<pre>
+	/**
+	 * Return a new streamed response from the application.
+	 *
+	 * @param  \Closure  $callback
+	 * @param  int      $status
+	 * @param  array    $headers
+	 * @return \Symfony\Component\HttpFoundation\StreamedResponse
+	 */
+	public static function stream($callback, $status = 200, array $headers = array())
+	{
+		return new StreamedResponse($callback, $status, $headers);
+	}
+
+</pre>
+產生一個Symfony的StreamedResponse實體回應。
+這招在Laravel官網沒有提到。
+參考Symfony API：<a href="http://api.symfony.com/2.5/Symfony/Component/HttpFoundation/StreamedResponse.html" title="StreamedResponse">StreamedResponse</a>
+<pre>
+
+	/**
+	 * Create a new file download response.
+	 *
+	 * @param  \SplFileInfo|string  $file
+	 * @param  string  $name
+	 * @param  array   $headers
+	 * @param  null|string  $disposition
+	 * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
+	 */
+	public static function download($file, $name = null, array $headers = array(), $disposition = 'attachment')
+	{
+		$response = new BinaryFileResponse($file, 200, $headers, true, $disposition);
+
+		if ( ! is_null($name))
+		{
+			return $response->setContentDisposition($disposition, $name, Str::ascii($name));
+		}
+
+		return $response;
+	}
+</pre>
+產生下載檔案的回應。
+<pre>
+
+}
+
+</pre>
