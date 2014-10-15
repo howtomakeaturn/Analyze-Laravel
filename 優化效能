@@ -1,0 +1,4 @@
+點開compiled.php來看，你會發現它內容超過1萬行。
+Laravel的command line工具Artisan有optimize功能，能將常用到的類別全部放進這支compiled.php檔內。
+只讀取一個檔案、就定義完大量的class。
+不知道「常用到」是指哪些檔案呢？待我研究後補上。

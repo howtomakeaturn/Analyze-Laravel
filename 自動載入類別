@@ -1,0 +1,102 @@
+<pre>
+<?php
+
+define('LARAVEL_START', microtime(true));
+</pre>
+定義一個常數，紀錄Laravel框架開始執行的時間。
+這樣的常數通常是用來衡量框架本身的效能。
+<pre>
+
+/*
+|--------------------------------------------------------------------------
+| Register The Composer Auto Loader
+|--------------------------------------------------------------------------
+|
+| Composer provides a convenient, automatically generated class loader
+| for our application. We just need to utilize it! We'll require it
+| into the script here so that we do not have to worry about the
+| loading of any our classes "manually". Feels great to relax.
+|
+*/
+
+require __DIR__.'/../vendor/autoload.php';
+</pre>
+真正的自動載入類別的功能，是由PHP的套件管理工具Composer來達成。
+<pre>
+/*
+|--------------------------------------------------------------------------
+| Include The Compiled Class File
+|--------------------------------------------------------------------------
+|
+| To dramatically increase your application's performance, you may use a
+| compiled class file which contains all of the classes commonly used
+| by a request. The Artisan "optimize" is used to create this file.
+|
+*/
+
+if (file_exists($compiled = __DIR__.'/compiled.php'))
+{
+	require $compiled;
+}
+</pre>
+點開compiled.php來看，你會發現它內容超過1萬行。
+Laravel的command line工具Artisan有optimize功能，能將常用到的類別全部放進這支compiled.php檔內。
+不知道「常用到」是指哪些檔案呢？
+<pre>
+
+/*
+|--------------------------------------------------------------------------
+| Setup Patchwork UTF-8 Handling
+|--------------------------------------------------------------------------
+|
+| The Patchwork library provides solid handling of UTF-8 strings as well
+| as provides replacements for all mb_* and iconv type functions that
+| are not available by default in PHP. We'll setup this stuff here.
+|
+*/
+
+Patchwork\Utf8\Bootup::initMbstring();
+</pre>
+載入協助處理UTF-8字串的函式庫。
+<pre>
+/*
+|--------------------------------------------------------------------------
+| Register The Laravel Auto Loader
+|--------------------------------------------------------------------------
+|
+| We register an auto-loader "behind" the Composer loader that can load
+| model classes on the fly, even if the autoload files have not been
+| regenerated for the application. We'll add it to the stack here.
+|
+*/
+
+Illuminate\Support\ClassLoader::register();
+</pre>
+PHP在5.1.2版以後提供spl_autoload_register函式，能將某些類別先「登記」進一個queue內，之後使用該類別便不需要先載入、PHP會自動進這個queue內尋找載入該類別的方法。
+上面已經由Composer負責「登記」大部份需要的系統類別了，而使用者自定義的類別(譬如說MVC的model檔案)，則在此處「登記」。
+<pre>
+/*
+|--------------------------------------------------------------------------
+| Register The Workbench Loaders
+|--------------------------------------------------------------------------
+|
+| The Laravel workbench provides a convenient place to develop packages
+| when working locally. However we will need to load in the Composer
+| auto-load files for the packages so that these can be used here.
+|
+*/
+
+if (is_dir($workbench = __DIR__.'/../workbench'))
+{
+	Illuminate\Workbench\Starter::start($workbench);
+}
+</pre>
+Laravel提供了一個workbench類別，協助使用者在本機開發package。
+不是說系統類別統一由一開始的Composer負責載入嗎？怎麼workbench會在這邊載入？
+註解說明是因為workbench與Composer有相依性。
+
+設計框架有一項困難之處就在這裡：框架用到的類別有一大堆，有自行開發的、有使用第3方函式庫的，該怎麼載入他們才漂亮？如何讓框架source code看起來不會亂七八糟？要全部在一個地方載入嗎？分散在不同地方會不會比較好？
+
+附上PHP另一知名框架CodeIgniter負責核心載入的程式碼，供大家參考比較：
+
+<a href="https://github.com/bcit-ci/CodeIgniter/blob/develop/system/core/CodeIgniter.php">https://github.com/bcit-ci/CodeIgniter/blob/develop/system/core/CodeIgniter.php</a>
